@@ -65,7 +65,7 @@ Remediation: ${result.remediation || "N/A"}`;
               )}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                   {result.control_id}
                 </span>
@@ -80,6 +80,16 @@ Remediation: ${result.remediation || "N/A"}`;
                 >
                   {result.verdict}
                 </span>
+                {result.similarity_score !== undefined && result.similarity_score !== null && (
+                  <span className="text-[10px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                    Similarity: {Math.round(result.similarity_score * 100)}%
+                  </span>
+                )}
+                {result.confidence !== undefined && result.confidence !== null && (
+                  <span className="text-[10px] font-medium bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded">
+                    AI Confidence: {Math.round(result.confidence * 100)}%
+                  </span>
+                )}
               </div>
               <h3 className="font-bold text-slate-900 text-sm mt-0.5 line-clamp-1">
                 {result.control_title}

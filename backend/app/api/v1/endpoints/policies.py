@@ -10,6 +10,7 @@ from app.schemas.policy import PolicyResponse, PolicyUploadResponse, PolicyListI
 from app.schemas.control import ControlCreate, ControlUpdate, ControlResponse
 from app.services.pdf_parser import extract_text_from_pdf_bytes
 from app.services.langchain_extractor import extract_controls_with_langchain
+from app.services.embedding_service import generate_embedding, generate_embeddings
 
 router = APIRouter()
 
@@ -33,7 +34,8 @@ async def upload_policy(
     1. Ingests uploaded PDF byte stream directly into memory.
     2. Extracts clean raw text via pypdf / pdfplumber.
     3. Invokes LangChain structured output extraction pipeline to derive testable technical rules.
-    4. Persists Policy and Control models to the database.
+    4. Computes pgvector embeddings for each extracted control.
+    5. Persists Policy and Control models to the database.
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Uploaded file must have a filename.")
@@ -62,7 +64,18 @@ async def upload_policy(
                 raise HTTPException(status_code=429, detail=str(exc)) from exc
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-        # 3. Save binary file to persistent storage directory
+        # 3. Compute embeddings for extracted controls
+        texts_to_embed = [
+            f"{item.title}: {item.description} (Target: {item.target_asset_type})"
+            for item in extracted_controls
+        ]
+        try:
+            control_embeddings = generate_embeddings(texts_to_embed)
+        except Exception as e:
+            print(f"[EMBEDDING NOTICE] Control embeddings deferred: {e}")
+            control_embeddings = [None] * len(extracted_controls)
+
+        # 4. Save binary file to persistent storage directory
         storage_dir = os.path.join("storage", "uploads")
         os.makedirs(storage_dir, exist_ok=True)
         file_uuid = generate_uuid()
@@ -71,7 +84,7 @@ async def upload_policy(
         with open(saved_file_path, "wb") as f:
             f.write(content)
 
-        # 4. Create Policy database record
+        # 5. Create Policy database record
         new_policy = Policy(
             id=file_uuid,
             filename=file.filename,
@@ -84,9 +97,9 @@ async def upload_policy(
         db.add(new_policy)
         db.flush()  # Populates new_policy.id
 
-        # 4. Create Control records
+        # 6. Create Control records with embeddings
         db_controls: List[Control] = []
-        for item in extracted_controls:
+        for i, item in enumerate(extracted_controls):
             ctrl = Control(
                 policy_id=new_policy.id,
                 control_id=item.control_id,
@@ -99,6 +112,7 @@ async def upload_policy(
                 severity=item.severity,
                 category=item.category,
                 remediation=item.remediation,
+                embedding=control_embeddings[i] if i < len(control_embeddings) else None,
                 created_at=datetime.now(timezone.utc),
             )
             db.add(ctrl)
@@ -202,6 +216,13 @@ def add_control_to_policy(
         if not policy:
             raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
 
+        # Compute embedding for custom control
+        emb = None
+        try:
+            emb = generate_embedding(f"{control_in.title}: {control_in.description} (Target: {control_in.target_asset_type})")
+        except Exception as e:
+            print(f"[EMBEDDING NOTICE] Custom control embedding skipped: {e}")
+
         new_ctrl = Control(
             policy_id=policy.id,
             control_id=control_in.control_id,
@@ -214,6 +235,7 @@ def add_control_to_policy(
             severity=control_in.severity,
             category=control_in.category or "Custom Rule",
             remediation=control_in.remediation or "",
+            embedding=emb,
             created_at=datetime.now(timezone.utc),
         )
         db.add(new_ctrl)
@@ -255,6 +277,12 @@ def update_control(
             if hasattr(ctrl, field):
                 setattr(ctrl, field, value)
 
+        # Regenerate embedding if core attributes changed
+        try:
+            ctrl.embedding = generate_embedding(f"{ctrl.title}: {ctrl.description} (Target: {ctrl.target_asset_type})")
+        except Exception as e:
+            print(f"[EMBEDDING NOTICE] Control update embedding skipped: {e}")
+
         db.commit()
         db.refresh(ctrl)
         return ctrl
@@ -267,6 +295,52 @@ def update_control(
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail="Database operation failed while updating control.") from exc
+
+
+@router.post(
+    "/controls/backfill-embeddings",
+    summary="Backfill vector embeddings for all existing controls in database",
+)
+def backfill_control_embeddings(
+    db: Session = Depends(get_db),
+):
+    """
+    Safely populates pgvector embeddings for any controls in the database
+    that do not yet have an embedding generated. Does not alter or delete data.
+    """
+    try:
+        controls_to_update = db.query(Control).filter(Control.embedding.is_(None)).all()
+        if not controls_to_update:
+            total_controls = db.query(Control).count()
+            return {
+                "status": "success",
+                "message": "All controls already have embeddings populated.",
+                "updated_count": 0,
+                "total_controls": total_controls,
+            }
+
+        texts = [
+            f"{c.title}: {c.description} (Target: {c.target_asset_type})"
+            for c in controls_to_update
+        ]
+        embeddings = generate_embeddings(texts)
+
+        for ctrl, emb in zip(controls_to_update, embeddings):
+            ctrl.embedding = emb
+
+        db.commit()
+        return {
+            "status": "success",
+            "message": f"Successfully backfilled embeddings for {len(controls_to_update)} controls.",
+            "updated_count": len(controls_to_update),
+            "total_controls": db.query(Control).count(),
+        }
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to backfill control embeddings: {str(exc)}",
+        )
 
 
 @router.delete(

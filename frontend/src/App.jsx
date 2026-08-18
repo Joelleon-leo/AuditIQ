@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "./components/Navbar";
 import { PolicyUploader } from "./components/PolicyUploader";
 import { ControlsTable } from "./components/ControlsTable";
@@ -7,6 +7,7 @@ import { ExecutiveSummary } from "./components/ExecutiveSummary";
 import { ResultsTable } from "./components/ResultsTable";
 import { AuditDrawer } from "./components/AuditDrawer";
 import { ApiSettingsModal } from "./components/ApiSettingsModal";
+import { ScanHistoryModal } from "./components/ScanHistoryModal";
 import { ToastContainer } from "./components/ToastContainer";
 import { complianceApi, API_BASE_URL } from "./services/api";
 
@@ -17,10 +18,12 @@ export function App() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isLoadingScan, setIsLoadingScan] = useState(false);
   const [scanResult, setScanResult] = useState(null);
 
   const [selectedAuditItem, setSelectedAuditItem] = useState(null);
   const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [apiBaseUrl, setApiBaseUrlState] = useState(API_BASE_URL);
   const [apiConnected, setApiConnected] = useState(true);
   const [apiLatency, setApiLatency] = useState(14);
@@ -45,6 +48,20 @@ export function App() {
     target_metric: c.target_metric || c.metric_path || "compliance_status",
     threshold: c.threshold !== undefined ? c.threshold : (c.threshold_value !== undefined ? c.threshold_value : "true"),
   });
+
+  const getScanIdFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("scan")) return params.get("scan");
+    if (params.get("scan_id")) return params.get("scan_id");
+    const pathParts = window.location.pathname.split("/").filter(Boolean);
+    if (pathParts.length >= 3 && pathParts[0] === "compliance" && pathParts[1] === "results" && pathParts[2]) {
+      return pathParts[2];
+    }
+    if (pathParts.length >= 2 && pathParts[0] === "scans" && pathParts[1]) {
+      return pathParts[1];
+    }
+    return null;
+  };
 
   const selectAndLoadPolicy = async (policy) => {
     if (!policy) {
@@ -72,6 +89,55 @@ export function App() {
     }
   };
 
+  const loadPersistedScan = useCallback(async (scanId, updateHistory = true, availablePolicies = allPolicies) => {
+    if (!scanId) return;
+    setIsLoadingScan(true);
+
+    try {
+      const report = await complianceApi.getScanDetails(scanId);
+      setScanResult(report);
+      setActiveTab("scanner");
+
+      if (updateHistory) {
+        const url = new URL(window.location);
+        url.searchParams.set("scan", scanId);
+        window.history.pushState({ scanId }, "", url.toString());
+      }
+
+      // Connect associated policy from scan metadata if available
+      if (report.policy_id) {
+        const matchedPolicy = availablePolicies.find(
+          (p) => (p.id || p.policy_id) === report.policy_id
+        );
+        if (matchedPolicy) {
+          setActivePolicy(matchedPolicy);
+        } else {
+          try {
+            const fetched = await complianceApi.getPolicyById(report.policy_id);
+            const normalized = {
+              ...fetched,
+              id: fetched.id || fetched.policy_id,
+              policy_id: fetched.id || fetched.policy_id,
+              controls: (fetched.controls || []).map(normalizeControl),
+            };
+            setActivePolicy(normalized);
+          } catch {
+            // Leave policy name as rendered from scan result
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load persisted scan:", err);
+      addToast(
+        "error",
+        "Scan Load Error",
+        `Could not retrieve persisted scan '${scanId}' from database.`
+      );
+    } finally {
+      setIsLoadingScan(false);
+    }
+  }, [allPolicies]);
+
   useEffect(() => {
     const checkApi = async () => {
       try {
@@ -84,7 +150,7 @@ export function App() {
       }
     };
 
-    const loadPolicies = async () => {
+    const loadPoliciesAndScan = async () => {
       try {
         const policies = await complianceApi.getPolicies();
 
@@ -100,7 +166,11 @@ export function App() {
 
         setAllPolicies(normalizedList);
 
-        if (normalizedList.length > 0) {
+        const urlScanId = getScanIdFromUrl();
+        if (urlScanId) {
+          // If URL has a persisted scan_id (e.g. from page refresh or bookmark), load from DB
+          await loadPersistedScan(urlScanId, false, normalizedList);
+        } else if (normalizedList.length > 0) {
           await selectAndLoadPolicy(normalizedList[0]);
         } else {
           setActivePolicy(null);
@@ -109,12 +179,30 @@ export function App() {
         console.error("Failed to load policies:", error);
         setAllPolicies([]);
         setActivePolicy(null);
+
+        const urlScanId = getScanIdFromUrl();
+        if (urlScanId) {
+          await loadPersistedScan(urlScanId, false, []);
+        }
       }
     };
 
     checkApi();
-    loadPolicies();
+    loadPoliciesAndScan();
   }, [apiBaseUrl]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlScanId = getScanIdFromUrl();
+      if (urlScanId) {
+        loadPersistedScan(urlScanId, false, allPolicies);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [loadPersistedScan, allPolicies]);
 
   const handlePolicyUploaded = (newPolicy) => {
     const normalized = {
@@ -241,205 +329,48 @@ export function App() {
     }
   };
 
-  const evaluateControlAgainstAsset = (control, asset) => {
-    const assetId = asset.id || asset.asset_id || "unknown-asset";
-    const assetType = asset.type || asset.asset_type || "";
-
-    const typeNormalized = assetType.toLowerCase().replace(/[-_]/g, "");
-    const controlTypeNormalized = (control?.asset_type || "").toLowerCase().replace(/[-_]/g, "");
-
-    const typeMatches =
-      typeNormalized === controlTypeNormalized ||
-      (controlTypeNormalized.includes("database") && (typeNormalized.includes("db") || typeNormalized.includes("rds"))) ||
-      (controlTypeNormalized.includes("storage") && (typeNormalized.includes("s3") || typeNormalized.includes("bucket"))) ||
-      (controlTypeNormalized.includes("gateway") && (typeNormalized.includes("apigw") || typeNormalized.includes("gateway"))) ||
-      (controlTypeNormalized.includes("container") && (typeNormalized.includes("k8s") || typeNormalized.includes("pod") || typeNormalized.includes("node")));
-
-    if (!typeMatches) {
-      return null;
-    }
-
-    const metricKey = control.target_metric;
-    let actualValue = undefined;
-
-    if (asset.metrics && asset.metrics[metricKey] !== undefined) {
-      actualValue = asset.metrics[metricKey];
-    } else if (asset[metricKey] !== undefined) {
-      actualValue = asset[metricKey];
-    } else {
-      const aliases = {
-        encryption_at_rest: ["encrypted", "encryption", "is_encrypted"],
-        backup_retention_days: ["backup_retention", "backup_days", "retention_days"],
-        public_access_blocked: ["block_public", "public_blocked", "is_private"],
-        tls_version: ["tls", "min_tls_version", "ssl_version"],
-        critical_cve_count: ["cve_count", "vulnerabilities", "critical_cves"],
-      };
-
-      const possibleKeys = aliases[metricKey] || [];
-      for (const k of possibleKeys) {
-        if (asset.metrics && asset.metrics[k] !== undefined) {
-          actualValue = asset.metrics[k];
-          break;
-        } else if (asset[k] !== undefined) {
-          actualValue = asset[k];
-          break;
-        }
-      }
-    }
-
-    if (actualValue === undefined) {
-      return {
-        result_id: `res-${Math.random().toString(36).slice(2, 9)}`,
-        control_id: control.control_id,
-        control_title: control.title,
-        severity: control.severity,
-        asset_id: assetId,
-        asset_type: assetType,
-        verdict: "NOT_EVALUABLE",
-        actual_value: "Metric Missing in Payload",
-        expected_condition: `${control.operator} ${control.threshold}`,
-        reasoning: `The evidence payload did not include the required telemetry metric '${metricKey}' for resource ${assetId}.`,
-        remediation: control.remediation,
-        raw_evidence: asset,
-      };
-    }
-
-    let isPassed = false;
-    const operator = control.operator;
-    const thresholdStr = String(control.threshold).toLowerCase();
-
-    if (typeof actualValue === "boolean" || thresholdStr === "true" || thresholdStr === "false") {
-      const boolActual = Boolean(actualValue);
-      const boolExpected = thresholdStr === "true";
-      isPassed = operator === "EQUALS" ? boolActual === boolExpected : boolActual !== boolExpected;
-    } else if (typeof actualValue === "number" || !isNaN(Number(thresholdStr))) {
-      const numActual = Number(actualValue);
-      const numExpected = Number(thresholdStr);
-
-      switch (operator) {
-        case "EQUALS":
-          isPassed = numActual === numExpected;
-          break;
-        case "NOT_EQUALS":
-          isPassed = numActual !== numExpected;
-          break;
-        case "GREATER_THAN":
-          isPassed = numActual > numExpected;
-          break;
-        case "GREATER_THAN_OR_EQUAL":
-          isPassed = numActual >= numExpected;
-          break;
-        case "LESS_THAN":
-          isPassed = numActual < numExpected;
-          break;
-        case "LESS_THAN_OR_EQUAL":
-          isPassed = numActual <= numExpected;
-          break;
-        default:
-          isPassed = numActual === numExpected;
-      }
-    } else {
-      isPassed = String(actualValue).toLowerCase() === thresholdStr;
-    }
-
-    const verdict = isPassed ? "COMPLIANT" : "NON_COMPLIANT";
-    const reasoning = isPassed
-      ? `Asset ${assetId} passed verification: observed ${metricKey} = '${actualValue}', meeting policy requirement (${operator} ${control.threshold}).`
-      : `VIOLATION on ${assetId}: observed ${metricKey} = '${actualValue}', violating mandatory rule threshold (${operator} ${control.threshold}). Immediate remediation required.`;
-
-    return {
-      result_id: `res-${Math.random().toString(36).slice(2, 9)}`,
-      control_id: control.control_id,
-      control_title: control.title,
-      severity: control.severity,
-      asset_id: assetId,
-      asset_type: assetType,
-      verdict,
-      actual_value: actualValue,
-      expected_condition: `${operator} ${control.threshold}`,
-      reasoning,
-      remediation: control.remediation,
-      raw_evidence: asset,
-    };
-  };
-
   const handleExecuteScan = async (evidencePayload) => {
-    if (!activePolicy || (!activePolicy.controls && !activePolicy.id)) {
-      addToast("error", "No Controls Found", "The active policy contains no controls to evaluate.");
-      return;
-    }
-
     setIsScanning(true);
 
     try {
+      const policyId = activePolicy ? (activePolicy.id || activePolicy.policy_id) : null;
       const report = await complianceApi.runComplianceScan(
-        activePolicy.id || activePolicy.policy_id,
+        policyId,
         evidencePayload
       );
 
       setScanResult(report);
       setIsScanning(false);
 
-      if (report.overall_verdict === "COMPLIANT") {
+      // Persist scan ID in URL query parameter so page refresh preserves results
+      const scanId = report.scan_id || report.id;
+      if (scanId) {
+        const url = new URL(window.location);
+        url.searchParams.set("scan", scanId);
+        window.history.pushState({ scanId }, "", url.toString());
+      }
+
+      if (report.overall_verdict === "COMPLIANT" || report.overall_status === "COMPLIANT") {
         addToast(
           "success",
           "Compliance Scan Passed",
-          `All ${report.passed_count} checks passed policy evaluation. Audit record saved to database.`
+          `All ${report.passed_count} checks passed policy evaluation. Audit record saved to Neon PostgreSQL (ID: ${scanId}).`
         );
       } else {
         addToast(
           "error",
           "Compliance Violations Detected",
-          `Found ${report.failed_count} non-compliant findings. Audit record saved to database.`
+          `Found ${report.failed_count} non-compliant findings. Audit record saved to Neon PostgreSQL (ID: ${scanId}).`
         );
       }
     } catch (error) {
-      console.warn("Backend API scan call failed, running local evaluation:", error);
-      let rawAssets = [];
-      if (Array.isArray(evidencePayload)) {
-        rawAssets = evidencePayload;
-      } else if (evidencePayload && Array.isArray(evidencePayload.assets)) {
-        rawAssets = evidencePayload.assets;
-      } else if (evidencePayload && typeof evidencePayload === "object") {
-        rawAssets = Object.values(evidencePayload).filter(
-          (val) => val && typeof val === "object" && (val.id || val.asset_id || val.type)
-        );
-        if (rawAssets.length === 0) {
-          rawAssets = [evidencePayload];
-        }
-      }
-
-      const evaluationResults = [];
-      for (const asset of rawAssets) {
-        for (const ctrl of (activePolicy.controls || [])) {
-          const evalRes = evaluateControlAgainstAsset(ctrl, asset);
-          if (evalRes) {
-            evaluationResults.push(evalRes);
-          }
-        }
-      }
-
-      const passed = evaluationResults.filter((r) => r.verdict === "COMPLIANT").length;
-      const failed = evaluationResults.filter((r) => r.verdict === "NON_COMPLIANT").length;
-      const notEval = evaluationResults.filter((r) => r.verdict === "NOT_EVALUABLE").length;
-
-      const overallVerdict = failed === 0 && passed > 0 ? "COMPLIANT" : "NON_COMPLIANT";
-
-      const scanData = {
-        scan_id: `SCAN-${Date.now().toString(36).toUpperCase()}`,
-        policy_id: activePolicy.id || activePolicy.policy_id,
-        policy_name: activePolicy.filename,
-        overall_verdict: overallVerdict,
-        passed_count: passed,
-        failed_count: failed,
-        not_evaluable_count: notEval,
-        total_checks: evaluationResults.length,
-        executed_at: new Date().toISOString(),
-        results: evaluationResults,
-      };
-
-      setScanResult(scanData);
+      console.error("Compliance scan failed:", error);
       setIsScanning(false);
+      addToast(
+        "error",
+        "Scan Execution Error",
+        error.message || "Failed to execute semantic compliance scan."
+      );
     }
   };
 
@@ -455,6 +386,7 @@ export function App() {
         apiConnected={apiConnected}
         apiLatency={apiLatency}
         onOpenApiSettings={() => setApiSettingsOpen(true)}
+        onOpenHistory={() => setHistoryModalOpen(true)}
       />
 
       {/* Main App Body */}
@@ -494,6 +426,7 @@ export function App() {
                 <EvidenceScanner
                   activePolicy={activePolicy}
                   onExecuteScan={handleExecuteScan}
+                  onOpenHistory={() => setHistoryModalOpen(true)}
                   isScanning={isScanning}
                   onErrorToast={(title, msg) => addToast("error", title, msg)}
                   onSuccessToast={(title, msg) => addToast("success", title, msg)}
@@ -502,13 +435,19 @@ export function App() {
 
               {/* Executive Summary Cards */}
               <div className="lg:col-span-6">
-                {scanResult ? (
+                {isLoadingScan ? (
+                  <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400">
+                    <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <h3 className="font-bold text-slate-700 text-sm">Loading Persisted Audit Record</h3>
+                    <p className="text-xs text-slate-500 mt-1">Retrieving scan data from Neon PostgreSQL...</p>
+                  </div>
+                ) : scanResult ? (
                   <ExecutiveSummary scanResult={scanResult} />
                 ) : (
                   <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
                     <h3 className="font-bold text-slate-700 text-sm">Awaiting Scan Execution</h3>
                     <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                      Click <strong>"Run Compliance Scan"</strong> to evaluate the evidence payload against active rules.
+                      Click <strong>"Run Compliance Scan"</strong> to evaluate the evidence payload against active rules, or view <strong>Past Scans</strong>.
                     </p>
                   </div>
                 )}
@@ -516,7 +455,7 @@ export function App() {
             </div>
 
             {/* Full Width Asset-Level Results Table */}
-            {scanResult && (
+            {scanResult && !isLoadingScan && (
               <ResultsTable
                 scanResult={scanResult}
                 onSelectResult={(item) => setSelectedAuditItem(item)}
@@ -545,6 +484,15 @@ export function App() {
         />
       )}
 
+      {/* Scan History Modal */}
+      <ScanHistoryModal
+        isOpen={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+        activePolicy={activePolicy}
+        onSelectScan={(scanId) => loadPersistedScan(scanId, true, allPolicies)}
+        activeScanId={scanResult?.scan_id || scanResult?.id}
+      />
+
       {/* Toast Alerts Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
@@ -557,11 +505,19 @@ export function App() {
           <span className={apiConnected ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
             {apiConnected ? "CONNECTED" : "OFFLINE"}
           </span>
+          {scanResult && (
+            <>
+              <span className="text-slate-600">·</span>
+              <span className="text-indigo-300 font-mono">
+                SCAN: {scanResult.scan_id || scanResult.id}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-4 shrink-0 font-mono text-[10px]">
           <span>Server Latency: {apiLatency !== null ? `${apiLatency}ms` : "Active"}</span>
           <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="hidden sm:inline text-slate-300">Scan Protocol: REST v1.4</span>
+          <span className="hidden sm:inline text-slate-300">Persistence: Neon PostgreSQL</span>
         </div>
       </footer>
     </div>

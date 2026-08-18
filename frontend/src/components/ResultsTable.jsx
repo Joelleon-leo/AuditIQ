@@ -54,10 +54,16 @@ export const ResultsTable = ({
             FAILED
           </span>
         );
+      case "INSUFFICIENT_EVIDENCE":
+        return (
+          <span className="px-2 py-1 bg-amber-100 text-amber-800 text-[10px] font-bold rounded uppercase">
+            INSUFFICIENT
+          </span>
+        );
       case "NOT_EVALUABLE":
       default:
         return (
-          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">
+          <span className="px-2 py-1 bg-slate-100 text-slate-700 text-[10px] font-bold rounded uppercase">
             UNVERIFIED
           </span>
         );
@@ -197,8 +203,18 @@ export const ResultsTable = ({
                     {/* Evaluated Control */}
                     <td className="px-6 py-3.5 align-top">
                       <div className="font-bold text-slate-800">{item.control_title}</div>
-                      <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                        {item.control_id}
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono mt-0.5">
+                        <span>{item.control_id}</span>
+                        {item.similarity_score !== undefined && item.similarity_score !== null && (
+                          <span className="text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.2 rounded text-[10px]">
+                            {Math.round(item.similarity_score * 100)}% match
+                          </span>
+                        )}
+                        {item.confidence !== undefined && item.confidence !== null && (
+                          <span className="text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.2 rounded text-[10px]">
+                            {Math.round(item.confidence * 100)}% conf
+                          </span>
+                        )}
                       </div>
                     </td>
 

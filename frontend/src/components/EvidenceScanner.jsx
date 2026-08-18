@@ -86,6 +86,7 @@ const PRESET_SAMPLE_EVIDENCE = {
 export const EvidenceScanner = ({
   activePolicy,
   onExecuteScan,
+  onOpenHistory,
   isScanning,
   onErrorToast,
   onSuccessToast,
@@ -261,27 +262,42 @@ export const EvidenceScanner = ({
           className="hidden"
         />
 
-        <button
-          type="button"
-          id="upload-evidence-json-btn"
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
-        >
-          <Upload className="w-4 h-4" />
-          <span>Upload Evidence File (.json)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            id="upload-evidence-json-btn"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Upload Evidence (.json)</span>
+          </button>
+
+          {onOpenHistory && (
+            <button
+              type="button"
+              id="open-scan-history-btn"
+              onClick={onOpenHistory}
+              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+              title="View Scan History in Neon PostgreSQL"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <span>Past Scans</span>
+            </button>
+          )}
+        </div>
 
         <button
           id="run-compliance-scan-btn"
           type="button"
-          disabled={!activePolicy || !jsonStatus.valid || isScanning}
+          disabled={!jsonStatus.valid || isScanning}
           onClick={handleExecuteScan}
           className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
         >
           {isScanning ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Evaluating Policy Conditions...</span>
+              <span>Semantic Search & LLM Evaluation...</span>
             </>
           ) : (
             <span>Run Compliance Scan</span>

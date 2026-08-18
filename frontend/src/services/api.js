@@ -78,15 +78,47 @@ export const complianceApi = {
     const res = await fetch(`${API_BASE_URL}/scans/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ policy_id: policyId, evidence }),
+      body: JSON.stringify({ policy_id: policyId || null, evidence }),
     });
-    if (!res.ok) throw new Error("Scan failed");
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Scan failed (${res.status}): ${errText || res.statusText}`);
+    }
+    return res.json();
+  },
+
+  async backfillEmbeddings() {
+    const res = await fetch(`${API_BASE_URL}/controls/backfill-embeddings`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to backfill embeddings");
     return res.json();
   },
 
   async getScanDetails(scanId) {
     const res = await fetch(`${API_BASE_URL}/scans/${scanId}`);
-    if (!res.ok) throw new Error("Failed to fetch scan details");
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Failed to fetch scan details (${res.status}): ${errText || res.statusText}`);
+    }
+    return res.json();
+  },
+
+  async getRecentScans(limit = 20) {
+    const res = await fetch(`${API_BASE_URL}/scans?limit=${limit}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Failed to fetch recent scans (${res.status}): ${errText || res.statusText}`);
+    }
+    return res.json();
+  },
+
+  async getPolicyScans(policyId) {
+    const res = await fetch(`${API_BASE_URL}/policies/${policyId}/scans`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Failed to fetch policy scans (${res.status}): ${errText || res.statusText}`);
+    }
     return res.json();
   },
 };

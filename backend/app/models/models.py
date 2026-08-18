@@ -6,10 +6,17 @@ from sqlalchemy import (
     Text,
     DateTime,
     Integer,
+    Float,
     ForeignKey,
     JSON,
 )
 from sqlalchemy.orm import relationship
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    # Fallback to JSON if pgvector is being installed
+    from sqlalchemy import JSON as Vector
+
 from app.core.database import Base
 
 
@@ -66,6 +73,7 @@ class Control(Base):
     severity = Column(String(50), default="HIGH")           # "CRITICAL", "HIGH", "MEDIUM", "LOW"
     category = Column(String(100), default="General Security")
     remediation = Column(Text, nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -122,12 +130,22 @@ class ScanResult(Base):
     control_id = Column(String(100), nullable=False)
     control_title = Column(String(255), nullable=False)
     severity = Column(String(50), default="HIGH")
-    status = Column(String(50), nullable=False)  # "COMPLIANT", "NON_COMPLIANT", "NOT_EVALUABLE", "ERROR"
+    status = Column(String(50), nullable=False)  # "COMPLIANT", "NON_COMPLIANT", "NOT_EVALUABLE", "INSUFFICIENT_EVIDENCE", "ERROR"
     actual_value = Column(JSON, nullable=True)
     expected_condition = Column(String(255), nullable=False)
     reasoning = Column(Text, nullable=False)
     remediation = Column(Text, nullable=True)
     raw_evidence = Column(JSON, nullable=True)
+    similarity_score = Column(Float, nullable=True)
+    confidence = Column(Float, nullable=True)
+    operator = Column(String(50), nullable=True)
+    evidence_field = Column(String(100), nullable=True)
+    match_method = Column(String(50), default="SEMANTIC_VECTOR")
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     # Relationships
     scan_run = relationship("ScanRun", back_populates="results")

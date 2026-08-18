@@ -70,6 +70,13 @@ class Settings(BaseSettings):
         "nvidia/nemotron-nano-9b-v2:free"
     )
 
+    # Embeddings
+    EMBEDDING_MODEL_NAME: str = os.getenv(
+        "EMBEDDING_MODEL_NAME",
+        "text-embedding-3-small"
+    )
+    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+
     @property
     def active_gemini_api_key(self) -> str:
         return self.OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
