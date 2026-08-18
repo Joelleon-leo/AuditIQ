@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = [
+    BACKEND_CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
@@ -37,18 +37,17 @@ class Settings(BaseSettings):
         cls,
         v: Union[str, List[str]]
     ) -> List[str]:
-
         if isinstance(v, str):
-            if v.startswith("[") and v.endswith("]"):
+            v_trimmed = v.strip()
+            if v_trimmed.startswith("[") and v_trimmed.endswith("]"):
                 try:
-                    return json.loads(v)
+                    return json.loads(v_trimmed)
                 except Exception:
                     pass
-
-            return [i.strip() for i in v.split(",") if i.strip()]
+            return [i.strip() for i in v_trimmed.split(",") if i.strip()]
 
         if isinstance(v, list):
-            return v
+            return [str(item).strip() for item in v if str(item).strip()]
 
         return ["*"]
 
