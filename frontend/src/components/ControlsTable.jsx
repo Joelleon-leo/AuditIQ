@@ -314,12 +314,12 @@ export const ControlsTable = ({
 
       {/* Add / Edit Control Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div
             id="control-form-modal"
-            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
           >
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
                 {editingControl ? "Edit Compliance Control Rule" : "Create New Compliance Rule"}
@@ -333,8 +333,8 @@ export const ControlsTable = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveControl} className="p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveControl} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Control ID</label>
                   <input
@@ -383,7 +383,7 @@ export const ControlsTable = ({
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Target Asset</label>
                   <input

@@ -185,32 +185,32 @@ export const EvidenceScanner = ({
   return (
     <div id="evidence-scanner-panel" className="bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
+      <div className="p-3 sm:p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-slate-700 text-sm">Evidence Ingestion</h2>
+          <h2 className="font-semibold text-slate-700 text-xs sm:text-sm">Evidence Ingestion</h2>
           <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono uppercase font-medium">
-            JSON Payload
+            JSON
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Preset Buttons */}
-          <div className="hidden sm:flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               id="preset-violations-btn"
               onClick={() => setJsonText(JSON.stringify(PRESET_SAMPLE_EVIDENCE.violations, null, 2))}
-              className="text-[11px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-rose-700 rounded font-medium transition-colors cursor-pointer"
+              className="text-[10px] sm:text-[11px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-rose-700 rounded font-medium transition-colors cursor-pointer"
             >
-              Sample Violations
+              Violations
             </button>
             <button
               type="button"
               id="preset-compliant-btn"
               onClick={() => setJsonText(JSON.stringify(PRESET_SAMPLE_EVIDENCE.compliant, null, 2))}
-              className="text-[11px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-emerald-700 rounded font-medium transition-colors cursor-pointer"
+              className="text-[10px] sm:text-[11px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-emerald-700 rounded font-medium transition-colors cursor-pointer"
             >
-              100% Compliant
+              Compliant
             </button>
           </div>
 

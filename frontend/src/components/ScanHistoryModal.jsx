@@ -58,13 +58,13 @@ export const ScanHistoryModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
         id="scan-history-modal"
         className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <History className="w-4 h-4" />
@@ -85,8 +85,8 @@ export const ScanHistoryModal = ({
         </div>
 
         {/* Filter Toolbar */}
-        <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs">
+        <div className="px-4 sm:px-6 py-2.5 sm:py-3 border-b border-slate-100 bg-white flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
             <button
               onClick={() => setFilterMode("all")}
               className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${
@@ -116,7 +116,7 @@ export const ScanHistoryModal = ({
         </div>
 
         {/* Scan List */}
-        <div className="p-6 overflow-y-auto flex-1 divide-y divide-slate-100">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 divide-y divide-slate-100">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
               <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />

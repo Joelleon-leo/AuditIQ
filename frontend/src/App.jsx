@@ -390,7 +390,7 @@ export function App() {
       />
 
       {/* Main App Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
         {/* TAB 1: Policy Ingestion & Controls Management */}
         {activeTab === "controls" && (
           <div className="space-y-6 animate-in fade-in duration-200">
@@ -497,7 +497,7 @@ export function App() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Sleek Footer Status Bar */}
-      <footer className="h-8 bg-slate-800 flex items-center justify-between px-4 sm:px-6 text-[10px] font-medium text-slate-400 uppercase tracking-widest shrink-0 mt-auto border-t border-slate-700/50">
+      <footer className="min-h-8 py-1.5 sm:py-0 bg-slate-800 flex flex-wrap sm:flex-nowrap items-center justify-between px-3 sm:px-6 text-[10px] font-medium text-slate-400 uppercase tracking-widest shrink-0 mt-auto border-t border-slate-700/50 gap-2">
         <div className="flex items-center gap-2 truncate">
           <span className="text-slate-500 hidden sm:inline">ENDPOINT:</span>
           <span className="font-mono text-slate-300 truncate">/api/v1/compliance</span>
