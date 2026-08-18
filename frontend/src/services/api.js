@@ -1,13 +1,19 @@
 // Direct API Service Layer
 
-export let API_BASE_URL = "/api/v1";
+const DEFAULT_PROD_URL = "https://auditiq-mpfy.onrender.com/api/v1";
+const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+export let API_BASE_URL =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL)
+    ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
+    : (isLocalhost ? "/api/v1" : DEFAULT_PROD_URL);
 
 export function setApiBaseUrl(newUrl) {
   API_BASE_URL = newUrl.replace(/\/+$/, "");
 }
 
 export function resetApiBaseUrl() {
-  API_BASE_URL = "/api/v1";
+  API_BASE_URL = isLocalhost ? "/api/v1" : DEFAULT_PROD_URL;
 }
 
 export const complianceApi = {
