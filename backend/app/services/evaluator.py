@@ -407,7 +407,7 @@ def evaluate_control_with_llm(
                     "system",
                     COMPLIANCE_EVALUATION_SYSTEM_PROMPT
                     + "\n\nCRITICAL INSTRUCTION: You MUST return your evaluation strictly as a valid JSON object matching this schema:\n"
-                    + '{\n  "status": "COMPLIANT" | "NON_COMPLIANT" | "INSUFFICIENT_EVIDENCE",\n  "confidence": 0.95,\n  "reason": "Clear factual audit reason",\n  "remediation": "Optional fix if failed"\n}\n'
+                    + '{{\n  "status": "COMPLIANT" | "NON_COMPLIANT" | "INSUFFICIENT_EVIDENCE",\n  "confidence": 0.95,\n  "reason": "Clear factual audit reason",\n  "remediation": "Optional fix if failed"\n}}\n'
                     + "Do NOT output markdown commentary outside the JSON."
                 ),
                 (
