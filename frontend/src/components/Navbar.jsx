@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   FileText,
   ChevronDown,
@@ -8,6 +9,7 @@ import {
   Layers,
   Trash2,
   AlertTriangle,
+  Home,
 } from "lucide-react";
 
 export const Navbar = ({
@@ -44,11 +46,15 @@ export const Navbar = ({
         {/* Main Navbar Top Row */}
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
           {/* Left: Brand Logo & Title */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 sm:gap-3 shrink-0 hover:opacity-90 transition-opacity cursor-pointer group"
+            title="Back to Landing Page"
+          >
             <img
               src="/auditiq-logo.svg"
               alt="AuditIQ Logo"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl shadow-xs shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform"
             />
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900">
@@ -58,7 +64,7 @@ export const Navbar = ({
                 AI Compliance
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Right Section: Active Policy Selector & Desktop Navigation */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -189,6 +195,15 @@ export const Navbar = ({
 
             {/* Desktop Tabs */}
             <div className="hidden md:flex items-center space-x-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-500 hover:text-slate-900 hover:bg-white/60 transition-colors cursor-pointer"
+                title="Go to Landing Page"
+              >
+                <Home className="w-3.5 h-3.5 text-slate-400" />
+                <span>Home</span>
+              </Link>
+
               <button
                 type="button"
                 id="nav-tab-controls"

@@ -396,7 +396,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
       {/* Top Navigation Bar */}
       <Navbar
         activeTab={activeTab}
@@ -506,25 +506,6 @@ export function App() {
 
       {/* Toast Alerts Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-
-      {/* Sleek Footer Status Bar */}
-      <footer className="min-h-8 py-1.5 sm:py-0 bg-slate-800 flex flex-wrap sm:flex-nowrap items-center justify-between px-3 sm:px-6 text-[10px] font-medium text-slate-400 uppercase tracking-widest shrink-0 mt-auto border-t border-slate-700/50 gap-2">
-        <div className="flex items-center gap-2 truncate">
-          <span className="text-slate-500 hidden sm:inline">ENDPOINT:</span>
-          <span className="font-mono text-slate-300 truncate">/api/v1/compliance</span>
-          {scanResult && (
-            <>
-              <span className="text-slate-600">·</span>
-              <span className="text-indigo-300 font-mono">
-                SCAN: {scanResult.scan_id || scanResult.id}
-              </span>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-4 shrink-0 font-mono text-[10px]">
-          <span className="text-slate-300">Persistence: Neon PostgreSQL</span>
-        </div>
-      </footer>
     </div>
   );
 }
