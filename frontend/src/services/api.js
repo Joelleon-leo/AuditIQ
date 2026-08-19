@@ -3,30 +3,12 @@
 const DEFAULT_PROD_URL = "https://auditiq-mpfy.onrender.com/api/v1";
 const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-export let API_BASE_URL =
+export const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL)
     ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
     : (isLocalhost ? "/api/v1" : DEFAULT_PROD_URL);
 
-export function setApiBaseUrl(newUrl) {
-  API_BASE_URL = newUrl.replace(/\/+$/, "");
-}
-
-export function resetApiBaseUrl() {
-  API_BASE_URL = isLocalhost ? "/api/v1" : DEFAULT_PROD_URL;
-}
-
 export const complianceApi = {
-  async checkHealth() {
-    const start = performance.now();
-    try {
-      const res = await fetch(`${API_BASE_URL}/health`);
-      const data = await res.json();
-      return { status: data.status || "ok", latencyMs: Math.round(performance.now() - start), version: data.version || "1.4.0" };
-    } catch {
-      return { status: "ok", latencyMs: Math.round(performance.now() - start), version: "1.4.0-fallback" };
-    }
-  },
 
   async uploadPolicy(file) {
     const formData = new FormData();
@@ -52,6 +34,19 @@ export const complianceApi = {
     const res = await fetch(`${API_BASE_URL}/policies/${id}`);
     if (!res.ok) throw new Error("Failed to fetch policy");
     return res.json();
+  },
+
+  async deletePolicy(policyId) {
+    const res = await fetch(`${API_BASE_URL}/policies/${policyId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Failed to delete policy (${res.status}): ${errText || res.statusText}`);
+    }
+    return res.json();
+  },
+
+  getPolicyFileUrl(policyId) {
+    return `${API_BASE_URL}/policies/${policyId}/file`;
   },
 
   async createControl(policyId, controlData) {

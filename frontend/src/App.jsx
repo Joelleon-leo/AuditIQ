@@ -6,10 +6,9 @@ import { EvidenceScanner } from "./components/EvidenceScanner";
 import { ExecutiveSummary } from "./components/ExecutiveSummary";
 import { ResultsTable } from "./components/ResultsTable";
 import { AuditDrawer } from "./components/AuditDrawer";
-import { ApiSettingsModal } from "./components/ApiSettingsModal";
 import { ScanHistoryModal } from "./components/ScanHistoryModal";
 import { ToastContainer } from "./components/ToastContainer";
-import { complianceApi, API_BASE_URL } from "./services/api";
+import { complianceApi } from "./services/api";
 
 export function App() {
   const [activeTab, setActiveTab] = useState("controls");
@@ -22,11 +21,7 @@ export function App() {
   const [scanResult, setScanResult] = useState(null);
 
   const [selectedAuditItem, setSelectedAuditItem] = useState(null);
-  const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [apiBaseUrl, setApiBaseUrlState] = useState(API_BASE_URL);
-  const [apiConnected, setApiConnected] = useState(true);
-  const [apiLatency, setApiLatency] = useState(14);
 
   const [toasts, setToasts] = useState([]);
 
@@ -139,17 +134,6 @@ export function App() {
   }, [allPolicies]);
 
   useEffect(() => {
-    const checkApi = async () => {
-      try {
-        const res = await complianceApi.checkHealth();
-        setApiConnected(res.status === "ok");
-        setApiLatency(res.latencyMs);
-      } catch {
-        setApiConnected(false);
-        setApiLatency(null);
-      }
-    };
-
     const loadPoliciesAndScan = async () => {
       try {
         const policies = await complianceApi.getPolicies();
@@ -187,9 +171,8 @@ export function App() {
       }
     };
 
-    checkApi();
     loadPoliciesAndScan();
-  }, [apiBaseUrl]);
+  }, []);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -329,6 +312,44 @@ export function App() {
     }
   };
 
+  const handleDeletePolicy = async (policyToDelete) => {
+    if (!policyToDelete) return;
+    const policyId = policyToDelete.id || policyToDelete.policy_id;
+    const filename = policyToDelete.filename || "Policy";
+
+    try {
+      await complianceApi.deletePolicy(policyId);
+
+      const updatedPolicies = allPolicies.filter(
+        (p) => (p.id || p.policy_id) !== policyId
+      );
+      setAllPolicies(updatedPolicies);
+
+      // If deleted policy was active, switch to first remaining or null
+      const currentActiveId = activePolicy ? (activePolicy.id || activePolicy.policy_id) : null;
+      if (currentActiveId === policyId) {
+        if (updatedPolicies.length > 0) {
+          await selectAndLoadPolicy(updatedPolicies[0]);
+        } else {
+          setActivePolicy(null);
+        }
+      }
+
+      addToast(
+        "success",
+        "Policy Deleted",
+        `Policy "${filename}", all associated controls, and the stored document file were deleted.`
+      );
+    } catch (err) {
+      console.error("Failed to delete policy:", err);
+      addToast(
+        "error",
+        "Deletion Failed",
+        err.message || `Failed to delete policy "${filename}".`
+      );
+    }
+  };
+
   const handleExecuteScan = async (evidencePayload) => {
     setIsScanning(true);
 
@@ -383,10 +404,7 @@ export function App() {
         activePolicy={activePolicy}
         allPolicies={allPolicies}
         onSelectPolicy={(p) => selectAndLoadPolicy(p)}
-        apiConnected={apiConnected}
-        apiLatency={apiLatency}
-        onOpenApiSettings={() => setApiSettingsOpen(true)}
-        onOpenHistory={() => setHistoryModalOpen(true)}
+        onDeletePolicy={handleDeletePolicy}
       />
 
       {/* Main App Body */}
@@ -395,6 +413,7 @@ export function App() {
         {activeTab === "controls" && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <PolicyUploader
+              allPolicies={allPolicies}
               onUploadSuccess={handlePolicyUploaded}
               isUploading={isUploading}
               setIsUploading={setIsUploading}
@@ -406,6 +425,7 @@ export function App() {
               <ControlsTable
                 controls={activePolicy.controls || []}
                 policyName={activePolicy.filename}
+                activePolicy={activePolicy}
                 onAddControl={handleAddControl}
                 onUpdateControl={handleUpdateControl}
                 onDeleteControl={handleDeleteControl}
@@ -473,16 +493,7 @@ export function App() {
         onSuccessToast={(title, msg) => addToast("success", title, msg)}
       />
 
-      {/* API Configuration Modal */}
-      {apiSettingsOpen && (
-        <ApiSettingsModal
-          currentBaseUrl={apiBaseUrl}
-          onUpdateBaseUrl={(newUrl) => setApiBaseUrlState(newUrl)}
-          onClose={() => setApiSettingsOpen(false)}
-          onSuccessToast={(title, msg) => addToast("success", title, msg)}
-          onErrorToast={(title, msg) => addToast("error", title, msg)}
-        />
-      )}
+
 
       {/* Scan History Modal */}
       <ScanHistoryModal
@@ -501,10 +512,6 @@ export function App() {
         <div className="flex items-center gap-2 truncate">
           <span className="text-slate-500 hidden sm:inline">ENDPOINT:</span>
           <span className="font-mono text-slate-300 truncate">/api/v1/compliance</span>
-          <span className="text-slate-600">·</span>
-          <span className={apiConnected ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-            {apiConnected ? "CONNECTED" : "OFFLINE"}
-          </span>
           {scanResult && (
             <>
               <span className="text-slate-600">·</span>
@@ -515,9 +522,7 @@ export function App() {
           )}
         </div>
         <div className="flex items-center gap-4 shrink-0 font-mono text-[10px]">
-          <span>Server Latency: {apiLatency !== null ? `${apiLatency}ms` : "Active"}</span>
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="hidden sm:inline text-slate-300">Persistence: Neon PostgreSQL</span>
+          <span className="text-slate-300">Persistence: Neon PostgreSQL</span>
         </div>
       </footer>
     </div>

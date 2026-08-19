@@ -10,6 +10,7 @@ import {
 import { complianceApi } from "../services/api";
 
 export const PolicyUploader = ({
+  allPolicies = [],
   onUploadSuccess,
   isUploading,
   setIsUploading,
@@ -65,11 +66,38 @@ export const PolicyUploader = ({
       return;
     }
 
+    // Duplicate Check against ingested policies
+    const isDuplicate = allPolicies.some(
+      (p) => p.filename?.trim().toLowerCase() === file.name.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      onErrorToast(
+        "Duplicate Policy Document",
+        `"${file.name}" has already been uploaded. Duplicate policy documents are not allowed.`
+      );
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setSelectedFile(null);
+      return;
+    }
+
     setSelectedFile(file);
   };
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+
+    // Double check before upload
+    const isDuplicate = allPolicies.some(
+      (p) => p.filename?.trim().toLowerCase() === selectedFile.name.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      onErrorToast(
+        "Duplicate Policy Document",
+        `"${selectedFile.name}" has already been uploaded. Duplicate policy documents are not allowed.`
+      );
+      setSelectedFile(null);
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress(15);

@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.core.database import get_db
@@ -39,6 +40,21 @@ async def upload_policy(
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Uploaded file must have a filename.")
+
+    clean_filename = file.filename.strip()
+
+    # Prevent duplicate policy document uploads
+    try:
+        existing_policy = db.query(Policy).filter(Policy.filename.ilike(clean_filename)).first()
+        if existing_policy:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Policy document '{clean_filename}' has already been uploaded (Policy ID: {existing_policy.id}). Duplicate uploads are not allowed.",
+            )
+    except HTTPException:
+        raise
+    except Exception as check_err:
+        print(f"[DUPLICATE CHECK NOTICE] Could not verify existing filename: {check_err}")
 
     try:
         content = await file.read()
@@ -198,6 +214,97 @@ def get_policy(
         raise HTTPException(status_code=503, detail=DB_UNAVAILABLE_DETAIL) from exc
     except SQLAlchemyError as exc:
         raise HTTPException(status_code=500, detail="Database query failed for policy details.") from exc
+
+
+@router.get(
+    "/policies/{policy_id}/file",
+    summary="View or download policy PDF / text document directly",
+)
+def get_policy_file(
+    policy_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the uploaded PDF or text file for inline browser viewing.
+    Falls back to raw extracted text if the disk file is unavailable.
+    """
+    try:
+        policy = db.query(Policy).filter(Policy.id == policy_id).first()
+        if not policy:
+            raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
+
+        # Check if saved file exists on disk
+        if policy.file_path and os.path.exists(policy.file_path):
+            is_pdf = bool(policy.filename and policy.filename.lower().endswith(".pdf"))
+            media_type = "application/pdf" if is_pdf else "text/plain; charset=utf-8"
+            return FileResponse(
+                path=policy.file_path,
+                filename=policy.filename,
+                media_type=media_type,
+                content_disposition_type="inline",
+            )
+        elif policy.raw_text:
+            return Response(
+                content=policy.raw_text.encode("utf-8"),
+                media_type="text/plain; charset=utf-8",
+                headers={"Content-Disposition": f'inline; filename="{policy.filename}.txt"'},
+            )
+        else:
+            raise HTTPException(status_code=404, detail="Policy document content is not available.")
+    except HTTPException:
+        raise
+    except OperationalError as exc:
+        raise HTTPException(status_code=503, detail=DB_UNAVAILABLE_DETAIL) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read policy file: {str(exc)}") from exc
+
+
+@router.delete(
+    "/policies/{policy_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a policy, its controls, scans, and stored document file",
+)
+def delete_policy(
+    policy_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Deletes the policy record from database, cascades deletion of all its extracted controls
+    and associated scan runs, and deletes the stored PDF document from the file system.
+    """
+    try:
+        policy = db.query(Policy).filter(Policy.id == policy_id).first()
+        if not policy:
+            raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
+
+        policy_filename = policy.filename
+        file_path_to_delete = policy.file_path
+
+        # Clean up physical file on disk if it exists
+        if file_path_to_delete and os.path.exists(file_path_to_delete):
+            try:
+                os.remove(file_path_to_delete)
+            except Exception as file_err:
+                print(f"[CLEANUP WARNING] Failed to delete file {file_path_to_delete}: {file_err}")
+
+        # Delete policy record (cascading deletes to child controls and scan_runs)
+        db.delete(policy)
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": f"Policy '{policy_filename}' and its associated controls were deleted successfully.",
+            "policy_id": policy_id,
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except OperationalError as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=DB_UNAVAILABLE_DETAIL) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database operation failed while deleting policy.") from exc
 
 
 @router.post(

@@ -5,9 +5,9 @@ import {
   CheckCircle,
   ShieldCheck,
   Sparkles,
-  Settings,
-  Activity,
   Layers,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 export const Navbar = ({
@@ -16,11 +16,16 @@ export const Navbar = ({
   activePolicy,
   allPolicies = [],
   onSelectPolicy,
-  apiConnected,
-  apiLatency,
-  onOpenApiSettings,
+  onDeletePolicy,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [policyToDelete, setPolicyToDelete] = useState(null);
+
+  const confirmDelete = () => {
+    if (!policyToDelete || !onDeletePolicy) return;
+    onDeletePolicy(policyToDelete);
+    setPolicyToDelete(null);
+  };
 
   return (
     <header
@@ -40,9 +45,11 @@ export const Navbar = ({
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
           {/* Left: Brand Logo & Title */}
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-linear-to-br from-indigo-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-xs">
-              <span className="text-white font-bold text-xs tracking-wider">A.IQ</span>
-            </div>
+            <img
+              src="/auditiq-logo.svg"
+              alt="AuditIQ Logo"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl shadow-xs shrink-0"
+            />
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900">
                 AuditIQ
@@ -89,7 +96,7 @@ export const Navbar = ({
                     <span>Ingested Policies ({allPolicies.length})</span>
                     <span className="text-indigo-600 font-mono text-[9px]">AuditIQ Ready</span>
                   </div>
-                  <div className="max-h-64 overflow-y-auto py-1 divide-y divide-slate-50">
+                  <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
                     {allPolicies.length === 0 ? (
                       <div className="px-4 py-6 text-center text-slate-400">
                         <Layers className="w-6 h-6 mx-auto mb-1 text-slate-300" />
@@ -98,35 +105,80 @@ export const Navbar = ({
                       </div>
                     ) : (
                       allPolicies.map((p) => {
-                        const isSelected = activePolicy?.policy_id === (p.policy_id || p.id);
+                        const isSelected =
+                          activePolicy?.policy_id === (p.policy_id || p.id) ||
+                          activePolicy?.id === (p.policy_id || p.id);
                         return (
-                          <button
+                          <div
                             key={p.policy_id || p.id}
-                            id={`select-policy-${p.policy_id || p.id}`}
-                            onClick={() => {
-                              onSelectPolicy(p);
-                              setDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3.5 py-2.5 hover:bg-slate-50 flex items-start gap-2.5 transition-colors cursor-pointer ${
-                              isSelected ? "bg-indigo-50/70 text-indigo-900" : "text-slate-700"
+                            className={`group relative flex items-center justify-between p-2 rounded-xl transition-all border ${
+                              isSelected
+                                ? "bg-indigo-50/90 border-indigo-200 text-indigo-950 shadow-2xs"
+                                : "bg-white hover:bg-slate-50 border-transparent hover:border-slate-200 text-slate-700"
                             }`}
                           >
-                            <FileText
-                              className={`w-4 h-4 shrink-0 mt-0.5 ${
-                                isSelected ? "text-indigo-600" : "text-slate-400"
-                              }`}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold truncate text-slate-800">{p.filename}</p>
-                              <p className="text-[11px] text-slate-400">
-                                {p.controls?.length || p.extracted_controls_count || 0} Controls ·{" "}
-                                {String(p.policy_id || p.id || "").slice(0, 14)}...
-                              </p>
+                            {/* Left Area: Click to select policy */}
+                            <button
+                              type="button"
+                              id={`select-policy-${p.policy_id || p.id}`}
+                              onClick={() => {
+                                onSelectPolicy(p);
+                                setDropdownOpen(false);
+                              }}
+                              className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer pr-2"
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected
+                                    ? "bg-indigo-600 text-white shadow-2xs"
+                                    : "bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600"
+                                }`}
+                              >
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-xs truncate leading-tight text-slate-900">
+                                  {p.filename}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-medium">
+                                  <span className="text-slate-500">
+                                    {p.controls?.length || p.extracted_controls_count || 0} Controls
+                                  </span>
+                                  <span>·</span>
+                                  <span className="font-mono">
+                                    {String(p.policy_id || p.id || "").slice(0, 8)}...
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Right Area: Status Badge & Delete Button */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isSelected && (
+                                <span
+                                  className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0"
+                                  title="Active Selected Policy"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                </span>
+                              )}
+
+                              {onDeletePolicy && (
+                                <button
+                                  type="button"
+                                  id={`delete-policy-btn-${p.policy_id || p.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPolicyToDelete(p);
+                                  }}
+                                  title={`Delete ${p.filename}`}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-colors cursor-pointer shrink-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
-                            {isSelected && (
-                              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                            )}
-                          </button>
+                          </div>
                         );
                       })
                     )}
@@ -176,26 +228,6 @@ export const Navbar = ({
                 <span>Compliance Scanner</span>
               </button>
             </div>
-
-            {/* API Settings / Status Trigger */}
-            {onOpenApiSettings && (
-              <button
-                type="button"
-                id="open-api-settings-btn"
-                onClick={onOpenApiSettings}
-                className="p-2 rounded-lg sm:rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200/80 transition-colors cursor-pointer bg-white shadow-2xs"
-                title="API & Backend Settings"
-              >
-                <div className="relative">
-                  <Settings className="w-4 h-4" />
-                  <span
-                    className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${
-                      apiConnected ? "bg-emerald-500" : "bg-rose-500"
-                    }`}
-                  />
-                </div>
-              </button>
-            )}
           </div>
         </div>
 
@@ -243,6 +275,44 @@ export const Navbar = ({
           </div>
         </div>
       </div>
+     
+
+      {/* Policy Delete Confirmation Modal */}
+      {policyToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 text-center animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h4 className="font-bold text-slate-900 text-sm">
+              Delete Policy Document?
+            </h4>
+            <p className="text-xs font-semibold text-slate-700 mt-1 truncate">
+              {policyToDelete.filename}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              This will permanently delete the uploaded PDF file, all {policyToDelete.controls?.length || policyToDelete.extracted_controls_count || 0} extracted compliance controls, and associated scan logs.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPolicyToDelete(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="confirm-delete-policy-btn"
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+              >
+                Delete Everything
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

@@ -7,12 +7,16 @@ import {
   Filter,
   Shield,
   SlidersHorizontal,
-  X
+  X,
+  FileText,
+  Eye,
 } from "lucide-react";
+import { PolicyDocumentModal } from "./PolicyDocumentModal";
 
 export const ControlsTable = ({
   controls,
   policyName,
+  activePolicy,
   onAddControl,
   onUpdateControl,
   onDeleteControl,
@@ -22,6 +26,7 @@ export const ControlsTable = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const [assetTypeFilter, setAssetTypeFilter] = useState("ALL");
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingControl, setEditingControl] = useState(null);
@@ -165,15 +170,30 @@ export const ControlsTable = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          id="add-custom-control-btn"
-          onClick={openCreateModal}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition-colors self-start md:self-auto cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Add Custom Rule</span>
-        </button>
+        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+          {activePolicy && (
+            <button
+              type="button"
+              id="view-policy-document-btn"
+              onClick={() => setIsDocModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 shadow-2xs transition-colors cursor-pointer"
+              title="View uploaded PDF document and extracted text"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>View Policy Document</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            id="add-custom-control-btn"
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Custom Rule</span>
+          </button>
+        </div>
       </div>
 
       {/* Toolbar / Search & Filter */}
@@ -500,6 +520,16 @@ export const ControlsTable = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Policy PDF / Text Document Viewer Modal */}
+      {isDocModalOpen && (
+        <PolicyDocumentModal
+          policy={activePolicy}
+          onClose={() => setIsDocModalOpen(false)}
+          onSuccessToast={onSuccessToast}
+          onErrorToast={onErrorToast}
+        />
       )}
     </div>
   );

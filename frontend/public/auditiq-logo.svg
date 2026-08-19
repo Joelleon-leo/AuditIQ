@@ -9,18 +9,26 @@
       <stop offset="100%" stop-color="#e0e7ff" />
     </linearGradient>
   </defs>
+  
+  <!-- Rounded Base Card -->
   <rect width="40" height="40" rx="10" fill="url(#auditiq-grad)" />
+  
+  <!-- Shield Outline -->
   <path d="M20 7.5 L29 11.5 C29 18.5 25.5 25.5 20 28.5 C14.5 25.5 11 18.5 11 11.5 Z" 
         fill="none" 
         stroke="url(#shield-glow)" 
         stroke-width="2" 
         stroke-linejoin="round" 
         stroke-linecap="round" />
+        
+  <!-- Inner AI / Checkmark Mark -->
   <path d="M16 17.5 L19 20.5 L24.5 15" 
         fill="none" 
         stroke="#ffffff" 
         stroke-width="2.2" 
         stroke-linecap="round" 
         stroke-linejoin="round" />
+        
+  <!-- Sparkle Accent -->
   <circle cx="28" cy="9" r="1.5" fill="#a5b4fc" />
 </svg>
