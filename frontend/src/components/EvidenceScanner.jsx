@@ -1,9 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Code,
   Upload,
-  Play,
-  CheckCircle,
   AlertCircle,
   Sparkles,
   FileCode,

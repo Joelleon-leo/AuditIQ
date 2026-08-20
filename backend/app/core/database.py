@@ -56,6 +56,12 @@ def init_db() -> None:
             # If user does not have superuser or DB already has it
             print(f"[DB INIT] Notice while creating vector extension: {e}")
 
+        # Check / add file_base64 column to policies if not present
+        try:
+            conn.execute(text("ALTER TABLE policies ADD COLUMN IF NOT EXISTS file_base64 TEXT;"))
+        except Exception as e:
+            print(f"[DB INIT] Notice adding file_base64 column to policies: {e}")
+
         # Check / add embedding column to controls if not present
         try:
             conn.execute(text("ALTER TABLE controls ADD COLUMN IF NOT EXISTS embedding vector(1536);"))

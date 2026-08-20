@@ -1,6 +1,7 @@
 import os
+import base64
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from app.models.models import Policy, Control, generate_uuid
 from app.schemas.policy import PolicyResponse, PolicyUploadResponse, PolicyListItem
 from app.schemas.control import ControlCreate, ControlUpdate, ControlResponse
 from app.services.pdf_parser import extract_text_from_pdf_bytes
+from app.services.pdf_generator import generate_pdf_from_text
 from app.services.langchain_extractor import extract_controls_with_langchain
 from app.services.embedding_service import generate_embedding, generate_embeddings
 
@@ -91,14 +93,9 @@ async def upload_policy(
             print(f"[EMBEDDING NOTICE] Control embeddings deferred: {e}")
             control_embeddings = [None] * len(extracted_controls)
 
-        # 4. Save binary file to persistent storage directory
-        storage_dir = os.path.join("storage", "uploads")
-        os.makedirs(storage_dir, exist_ok=True)
+        # 4. Prepare binary document for PostgreSQL storage
         file_uuid = generate_uuid()
-        saved_file_name = f"{file_uuid}_{file.filename}"
-        saved_file_path = os.path.join(storage_dir, saved_file_name)
-        with open(saved_file_path, "wb") as f:
-            f.write(content)
+        file_base64_str = base64.b64encode(content).decode("utf-8")
 
         # 5. Create Policy database record
         new_policy = Policy(
@@ -106,7 +103,8 @@ async def upload_policy(
             filename=file.filename,
             file_size_bytes=file_size,
             raw_text=raw_text,
-            file_path=saved_file_path,
+            file_path=None,
+            file_base64=file_base64_str,
             status="PARSED",
             created_at=datetime.now(timezone.utc),
         )
@@ -141,6 +139,7 @@ async def upload_policy(
             policy_id=new_policy.id,
             filename=new_policy.filename,
             file_size_bytes=new_policy.file_size_bytes,
+            raw_text=new_policy.raw_text,
             status=new_policy.status,
             total_controls_extracted=len(db_controls),
             controls=[ControlResponse.model_validate(c) for c in db_controls],
@@ -216,41 +215,128 @@ def get_policy(
         raise HTTPException(status_code=500, detail="Database query failed for policy details.") from exc
 
 
+def resolve_policy_file_path(policy: Policy) -> Optional[str]:
+    """
+    Locates the exact physical uploaded document file on disk across
+    different working directory paths and naming schemes.
+    """
+    backend_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    search_dirs = [
+        os.path.join(backend_root, "storage", "uploads"),
+        os.path.join(os.getcwd(), "backend", "storage", "uploads"),
+        os.path.join(os.getcwd(), "storage", "uploads"),
+    ]
+
+    # 1. Check direct file_path from DB
+    if policy.file_path:
+        candidates = [
+            policy.file_path,
+            os.path.abspath(policy.file_path),
+            os.path.join(backend_root, policy.file_path),
+            os.path.join(os.getcwd(), policy.file_path),
+        ]
+        for c in candidates:
+            if c and os.path.exists(c) and os.path.isfile(c):
+                return c
+
+    # 2. Check candidate directories by policy ID and filename
+    for s_dir in search_dirs:
+        if os.path.exists(s_dir) and os.path.isdir(s_dir):
+            # Exact UUID prefix match
+            exact_name = f"{policy.id}_{policy.filename}"
+            exact_path = os.path.join(s_dir, exact_name)
+            if os.path.exists(exact_path) and os.path.isfile(exact_path):
+                return exact_path
+
+            # Prefix or suffix scan
+            for fname in os.listdir(s_dir):
+                if (policy.id and fname.startswith(str(policy.id))) or (policy.filename and fname.endswith(str(policy.filename))):
+                    candidate = os.path.join(s_dir, fname)
+                    if os.path.isfile(candidate):
+                        return candidate
+
+    return None
+
+
 @router.get(
     "/policies/{policy_id}/file",
-    summary="View or download policy PDF / text document directly",
+    summary="View or download the exact uploaded policy document directly",
 )
 def get_policy_file(
     policy_id: str,
     db: Session = Depends(get_db),
 ):
     """
-    Returns the uploaded PDF or text file for inline browser viewing.
-    Falls back to raw extracted text if the disk file is unavailable.
+    Returns the exact uploaded document byte-for-byte for inline browser viewing.
+    Priority 1: Physical exact uploaded document on server disk (updates DB cache).
+    Priority 2: Stored base64 binary document from PostgreSQL.
+    Priority 3: Dynamically generated document from extracted policy text.
     """
     try:
         policy = db.query(Policy).filter(Policy.id == policy_id).first()
         if not policy:
             raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
 
-        # Check if saved file exists on disk
-        if policy.file_path and os.path.exists(policy.file_path):
-            is_pdf = bool(policy.filename and policy.filename.lower().endswith(".pdf"))
-            media_type = "application/pdf" if is_pdf else "text/plain; charset=utf-8"
+        filename = policy.filename or "policy_document.pdf"
+        is_pdf_name = bool(filename.lower().endswith(".pdf"))
+        safe_pdf_filename = filename if is_pdf_name else f"{filename}.pdf"
+
+        # 1. Base64 database binary stream (primary: stored directly in PostgreSQL)
+        if getattr(policy, "file_base64", None):
+            try:
+                pdf_bytes = base64.b64decode(policy.file_base64)
+                if pdf_bytes and len(pdf_bytes) > 10:
+                    media_type = "application/pdf" if (is_pdf_name or pdf_bytes.startswith(b"%PDF")) else "text/plain; charset=utf-8"
+                    return Response(
+                        content=pdf_bytes,
+                        media_type=media_type,
+                        headers={
+                            "Content-Disposition": f'inline; filename="{filename}"',
+                            "Content-Type": media_type,
+                            "Cache-Control": "public, max-age=86400",
+                        },
+                    )
+            except Exception as b64_err:
+                print(f"[POLICY FILE WARNING] Base64 decode error: {b64_err}")
+
+        # 2. Check physical file on server disk (legacy fallback)
+        disk_path = resolve_policy_file_path(policy)
+        if disk_path and os.path.exists(disk_path):
+            media_type = "application/pdf" if is_pdf_name else "text/plain; charset=utf-8"
             return FileResponse(
-                path=policy.file_path,
-                filename=policy.filename,
+                path=disk_path,
+                filename=filename,
                 media_type=media_type,
                 content_disposition_type="inline",
+                headers={
+                    "Content-Disposition": f'inline; filename="{filename}"',
+                    "Content-Type": media_type,
+                    "Cache-Control": "public, max-age=86400",
+                },
             )
-        elif policy.raw_text:
-            return Response(
-                content=policy.raw_text.encode("utf-8"),
-                media_type="text/plain; charset=utf-8",
-                headers={"Content-Disposition": f'inline; filename="{policy.filename}.txt"'},
-            )
-        else:
-            raise HTTPException(status_code=404, detail="Policy document content is not available.")
+
+        # 3. Dynamic PDF synthesis from raw extracted text (last fallback)
+        if policy.raw_text and len(policy.raw_text.strip()) > 0:
+            try:
+                synthesized_pdf = generate_pdf_from_text(policy.raw_text, title=filename)
+                return Response(
+                    content=synthesized_pdf,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'inline; filename="{safe_pdf_filename}"',
+                        "Content-Type": "application/pdf",
+                        "Cache-Control": "public, max-age=3600",
+                    },
+                )
+            except Exception as gen_err:
+                print(f"[POLICY FILE WARNING] Dynamic PDF generation fallback: {gen_err}")
+                return Response(
+                    content=policy.raw_text.encode("utf-8"),
+                    media_type="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": f'inline; filename="{filename}.txt"'},
+                )
+
+        raise HTTPException(status_code=404, detail="Policy document content is not available.")
     except HTTPException:
         raise
     except OperationalError as exc:
@@ -278,14 +364,13 @@ def delete_policy(
             raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
 
         policy_filename = policy.filename
-        file_path_to_delete = policy.file_path
-
-        # Clean up physical file on disk if it exists
-        if file_path_to_delete and os.path.exists(file_path_to_delete):
+        # Clean up physical file on disk using robust path resolution
+        resolved_path = resolve_policy_file_path(policy) or policy.file_path
+        if resolved_path and os.path.exists(resolved_path):
             try:
-                os.remove(file_path_to_delete)
+                os.remove(resolved_path)
             except Exception as file_err:
-                print(f"[CLEANUP WARNING] Failed to delete file {file_path_to_delete}: {file_err}")
+                print(f"[CLEANUP WARNING] Failed to delete file {resolved_path}: {file_err}")
 
         # Delete policy record (cascading deletes to child controls and scan_runs)
         db.delete(policy)

@@ -37,6 +37,7 @@ class PolicyUploadResponse(BaseModel):
     policy_id: str
     filename: str
     file_size_bytes: int
+    raw_text: Optional[str] = None
     status: str
     total_controls_extracted: int
     controls: List[ControlResponse]

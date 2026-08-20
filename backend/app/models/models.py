@@ -32,6 +32,7 @@ class Policy(Base):
     file_size_bytes = Column(Integer, default=0)
     raw_text = Column(Text, nullable=False)
     file_path = Column(String(500), nullable=True)
+    file_base64 = Column(Text, nullable=True)
     status = Column(String(50), default="PARSED")
     created_at = Column(
         DateTime(timezone=True),

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FileText,
   X,
@@ -10,27 +10,51 @@ import {
   Shield,
   Layers,
   Calendar,
-  HardDrive
+  HardDrive,
+  Loader2,
 } from "lucide-react";
 import { complianceApi } from "../services/api";
 
 export const PolicyDocumentModal = ({ policy, onClose, onSuccessToast, onErrorToast }) => {
   const [activeView, setActiveView] = useState("pdf"); // 'pdf' | 'text'
   const [copied, setCopied] = useState(false);
+  const [rawText, setRawText] = useState(policy?.raw_text || "");
+  const [isLoadingText, setIsLoadingText] = useState(false);
+
+  const policyId = policy?.id || policy?.policy_id;
+  const fileUrl = policyId ? complianceApi.getPolicyFileUrl(policyId) : "";
+  const isPdf = policy?.filename?.toLowerCase().endsWith(".pdf");
+
+  useEffect(() => {
+    if (policy?.raw_text) {
+      setRawText(policy.raw_text);
+    } else if (policyId) {
+      setIsLoadingText(true);
+      complianceApi
+        .getPolicyById(policyId)
+        .then((data) => {
+          if (data && data.raw_text) {
+            setRawText(data.raw_text);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch policy raw text:", err);
+        })
+        .finally(() => {
+          setIsLoadingText(false);
+        });
+    }
+  }, [policy, policyId]);
 
   if (!policy) return null;
 
-  const policyId = policy.id || policy.policy_id;
-  const fileUrl = complianceApi.getPolicyFileUrl(policyId);
-  const isPdf = policy.filename?.toLowerCase().endsWith(".pdf");
-
   const handleCopyText = async () => {
-    if (!policy.raw_text) {
+    if (!rawText) {
       if (onErrorToast) onErrorToast("Copy Failed", "No extracted text available for this policy.");
       return;
     }
     try {
-      await navigator.clipboard.writeText(policy.raw_text);
+      await navigator.clipboard.writeText(rawText);
       setCopied(true);
       if (onSuccessToast) onSuccessToast("Copied to Clipboard", "Policy document text copied.");
       setTimeout(() => setCopied(false), 2000);
@@ -152,29 +176,37 @@ export const PolicyDocumentModal = ({ policy, onClose, onSuccessToast, onErrorTo
         </div>
 
         {/* Modal Main Viewport */}
-        <div className="flex-1 min-h-0 bg-slate-50 relative overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 bg-slate-100 relative overflow-hidden flex flex-col">
           {activeView === "pdf" ? (
-            <div className="w-full h-full flex flex-col">
+            <div className="w-full h-full flex flex-col bg-slate-200">
               <iframe
                 id="policy-pdf-iframe"
-                src={fileUrl}
+                src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                type="application/pdf"
                 title={policy.filename}
-                className="w-full h-full border-none flex-1"
+                className="w-full h-full border-none flex-1 bg-white"
               />
             </div>
           ) : (
-            <div className="w-full h-full p-4 sm:p-6 overflow-y-auto bg-white font-mono text-xs leading-relaxed text-slate-800">
-              {policy.raw_text ? (
-                <pre className="whitespace-pre-wrap font-sans text-xs text-slate-700 leading-normal select-text">
-                  {policy.raw_text}
-                </pre>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
-                  <FileText className="w-10 h-10 text-slate-300 mb-2" />
-                  <p className="font-semibold text-slate-600">No raw text recorded</p>
-                  <p className="text-[11px] text-slate-400">Please switch to the PDF viewer tab</p>
-                </div>
-              )}
+            <div className="w-full h-full p-4 sm:p-6 overflow-y-auto bg-slate-100/60 font-mono text-xs leading-relaxed text-slate-800 flex justify-center">
+              <div className="max-w-3xl w-full bg-white p-6 sm:p-8 rounded-xl shadow-xs border border-slate-200 my-2">
+                {isLoadingText ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
+                    <p className="font-semibold text-slate-700 text-xs">Loading extracted policy text...</p>
+                  </div>
+                ) : rawText ? (
+                  <pre className="whitespace-pre-wrap font-mono text-xs text-slate-800 leading-relaxed select-text">
+                    {rawText}
+                  </pre>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+                    <FileText className="w-10 h-10 text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">No raw text recorded</p>
+                    <p className="text-[11px] text-slate-400">Please switch to the PDF viewer tab</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

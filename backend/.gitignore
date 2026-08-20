@@ -1,2 +1,36 @@
-.venv
+# Byte-compiled / optimized / DLL files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyc
+*$py.class
+*.so
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Environment Variables & Secrets
 .env
+.env.*
+!.env.example
+
+# Local SQLite & file storage
+*.db
+*.sqlite3
+storage/
+storage/uploads/
+uploads/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
