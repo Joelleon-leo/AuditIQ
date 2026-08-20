@@ -61,9 +61,23 @@ export function App() {
   const selectAndLoadPolicy = async (policy) => {
     if (!policy) {
       setActivePolicy(null);
+      setScanResult(null);
       return;
     }
     const policyId = policy.id || policy.policy_id;
+
+    // Reset scan result if switching away from the document that was scanned
+    setScanResult((prevScan) => {
+      if (prevScan && prevScan.policy_id && prevScan.policy_id !== policyId) {
+        const url = new URL(window.location);
+        url.searchParams.delete("scan");
+        url.searchParams.delete("scan_id");
+        window.history.replaceState({}, "", url.toString());
+        return null;
+      }
+      return prevScan;
+    });
+
     try {
       const fullPolicy = await complianceApi.getPolicyById(policyId);
       const normalized = {
@@ -196,6 +210,11 @@ export function App() {
     };
     setAllPolicies((prev) => [normalized, ...prev]);
     setActivePolicy(normalized);
+    setScanResult(null);
+    const url = new URL(window.location);
+    url.searchParams.delete("scan");
+    url.searchParams.delete("scan_id");
+    window.history.replaceState({}, "", url.toString());
     setActiveTab("controls");
   };
 
