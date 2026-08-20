@@ -52,7 +52,7 @@ Usually, human security auditors have to manually read these documents and inspe
 ## 🏗️ System Architecture
 
 <p align="center">
-  <img src="./assets/architecture_diagram.png" alt="AuditIQ System Architecture & End-to-End Workflow" width="100%" />
+  <img src="./frontend/assets/AuditIQ_Architecture.png" alt="AuditIQ System Architecture & End-to-End Workflow" width="100%" />
 </p>
 
 ### 🔄 The 4-Stage Workflow:
@@ -76,30 +76,47 @@ Usually, human security auditors have to manually read these documents and inspe
 
 ## 📸 Application Walkthrough
 
-### 1. Interactive Policy & Rule Management
-Upload compliance PDFs and view/edit extracted security controls with custom thresholds.
+### 1. Landing Page & 4-Step Pipeline Overview
+Intuitive enterprise interface presenting the automated compliance verification workflow.
 
 <p align="center">
-  <img src="./assets/policy_upload.png" alt="Policy Uploader & Controls Management" width="85%" />
+  <img src="./frontend/assets/Screenshot%202026-08-20%20151721.png" alt="AuditIQ Landing Page Hero" width="90%" />
+</p>
+
+<p align="center">
+  <img src="./frontend/assets/Screenshot%202026-08-20%20151735.png" alt="AuditIQ 4-Step Workflow Pipeline" width="90%" />
 </p>
 
 ---
 
-### 2. Live Evidence Scanner & Executive Summary
-Paste JSON telemetry or pick sample infrastructure presets to run live compliance audits.
+### 2. Policy Ingestion & Interactive Document Viewer
+Upload compliance PDF frameworks (SOC 2, ISO 27001, internal policies) and preview full document text and extracted controls inline.
 
 <p align="center">
-  <img src="./assets/evidence_scanner.png" alt="Evidence Scanner and Executive Summary" width="85%" />
+  <img src="./frontend/assets/Screenshot%202026-08-20%20151750.png" alt="Policy Upload and Extracted Controls Management" width="90%" />
+</p>
+
+<p align="center">
+  <img src="./frontend/assets/Screenshot%202026-08-20%20154824.png" alt="Interactive In-Browser Policy PDF Viewer" width="90%" />
 </p>
 
 ---
 
-### 3. Detailed Audit Results & Explainable Drawer
-View individual asset pass/fail verdicts and inspect full LLM audit reasoning with recommended fixes.
+### 3. Custom Rule Builder & Evidence Ingestion
+Define custom compliance rules with specific operators/thresholds and paste live infrastructure telemetry JSON into the scanner.
 
-| Detailed Results Table | Explainable Audit Drawer |
+| Custom Rule Builder Modal | Telemetry Evidence JSON Editor |
 |:---:|:---:|
-| <img src="./assets/audit_results.png" width="450" alt="Audit Results Table" /> | <img src="./assets/audit_drawer.png" width="450" alt="Audit Reasoning Drawer" /> |
+| <img src="./frontend/assets/Screenshot%202026-08-20%20151804.png" width="480" alt="Create Custom Rule" /> | <img src="./frontend/assets/Screenshot%202026-08-20%20151906.png" width="480" alt="Evidence JSON Ingestion" /> |
+
+---
+
+### 4. Executive Summary & Asset-Level Audit Results
+Instant compliance verdicts with pass/fail metrics, similarity match confidence scores, and individual asset breakdown.
+
+<p align="center">
+  <img src="./frontend/assets/Screenshot%202026-08-20%20164638.png" alt="Executive Summary Verdict and Detailed Audit Results Table" width="95%" />
+</p>
 
 ---
 
@@ -146,7 +163,7 @@ Make sure you have installed on your machine:
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/AuditIQ.git
+git clone https://github.com/Joelleon-leo/AuditIQ.git
 cd AuditIQ
 ```
 
