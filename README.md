@@ -300,4 +300,3 @@ You can copy and paste this sample payload directly into the **Evidence Scanner*
 
 Contributions, issues, and feature requests are welcome!
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
