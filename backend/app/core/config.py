@@ -29,7 +29,13 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
+        "https://audit-iq-liard.vercel.app",
+        "https://audit-iq.vercel.app",
     ]
+    CORS_ORIGIN_REGEX: str = os.getenv(
+        "CORS_ORIGIN_REGEX",
+        r"https://.*\.vercel\.app",
+    )
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
